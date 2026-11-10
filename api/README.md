@@ -24,9 +24,9 @@ api/
 │   └── services/
 │       ├── ingestion.py   # Load → chunk → embed → store
 │       └── chat.py        # RAGService: retrieve → prompt → answer
-├── data/
+├── files/
 │   └── shop_handbook.pdf  # Source document
-├── qdrant_data/           # Local vector store (created by ingestion)
+├── vector_stores/         # Local vector store (created by ingestion)
 ├── .env.example
 └── pyproject.toml
 ```
@@ -56,7 +56,7 @@ cp .env.example .env
 
 ## 1. Ingest the handbook
 
-This builds the Qdrant collection from `data/shop_handbook.pdf`. Run it once, and again whenever the PDF or the chunking and embedding settings change. It deletes and rebuilds the collection each time.
+This builds the Qdrant collection from `files/shop_handbook.pdf`. Run it once, and again whenever the PDF or the chunking and embedding settings change. It deletes and rebuilds the collection each time.
 
 ```bash
 uv run python -c "from app.services.ingestion import ingest; print(ingest(), 'chunks indexed')"
@@ -93,7 +93,7 @@ curl -X POST http://127.0.0.1:8000/ask \
 {
   "answer": "…",
   "sources": [
-    { "source": "data/shop_handbook.pdf", "page": 2, "score": 0.7812 }
+    { "source": "files/shop_handbook.pdf", "page": 2, "score": 0.7812 }
   ]
 }
 ```
@@ -126,7 +126,7 @@ All settings are read from `api/.env`, and each one needs the `RAG_` prefix. See
 | `RAG_CHUNK_OVERLAP`    | `100`                     | Overlap between chunks                      |
 | `RAG_TOP_K`            | `3`                       | Chunks retrieved per question               |
 | `RAG_COLLECTION_NAME`  | `shop_handbook`           | Qdrant collection                           |
-| `RAG_QDRANT_PATH`      | `./qdrant_data`           | Local Qdrant storage                        |
+| `RAG_QDRANT_PATH`      | `./vector_stores`         | Local Qdrant storage                        |
 | `RAG_QDRANT_URL`       | *(unset)*                 | Qdrant server URL (overrides the path)      |
 
 To use another provider, such as Anthropic, OpenAI or Google, install its LangChain package and set the provider, model and API key as shown in `.env.example`. If you change the embedding model, update `RAG_EMBED_DIM` and run ingestion again.
