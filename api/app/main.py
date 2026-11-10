@@ -1,23 +1,29 @@
-from services.ingestion import ingest
-from services.chat import RAGService
+from contextlib import asynccontextmanager
+from typing import Annotated
+
+from fastapi import FastAPI, Request
+from pydantic import BaseModel, StringConstraints
+
+from app.services.chat import RAGService, Answer
 
 
-def main():
-    rag_service = RAGService()
-    try:
-        query = input("You: ").strip()
-        result = rag_service.ask(query)
-        print(f"AI: {result.answer}")
-    except ValueError as e:
-        print(f"Error: {e}")
-    except (KeyboardInterrupt, EOFError):
-        print()
-    except Exception as e:
-        print(f"Something went wrong: {e}")
-    finally:
-        rag_service.close()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.rag = RAGService()
+    yield
+    app.state.rag.close()
 
+app = FastAPI(title="Clause AI APIs", lifespan=lifespan)
 
-if __name__ == "__main__":
-    # ingest()
-    main()
+class AskQuestion(BaseModel):
+    question: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)
+    ]
+
+@app.get("/")
+def health():
+    return {"status": "ok"}
+
+@app.post("/ask", response_model=Answer)
+def ask_query(body: AskQuestion, req: Request):
+    return req.app.state.rag.ask(body.question)
