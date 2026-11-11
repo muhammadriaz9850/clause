@@ -1,4 +1,3 @@
-from app.services.ingestion import ingest
 from app.services.chat import RAGService
 
 
@@ -19,5 +18,8 @@ def main():
 
 
 if __name__ == "__main__":
-    # ingest()
     main()
+
+
+# cd api
+# uv run python -m app.cli

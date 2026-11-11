@@ -27,3 +27,7 @@ def health():
 @app.post("/ask", response_model=Answer)
 def ask_query(body: AskQuestion, req: Request):
     return req.app.state.rag.ask(body.question)
+
+
+# cd api
+# uv run fastapi dev app/main.py
