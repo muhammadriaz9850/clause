@@ -34,8 +34,10 @@ class RAGService():
         # LLM
         self.llm = init_chat_model(
             model=self.settings.chat_model,
+            api_key=self.settings.chat_api_key,
             model_provider=self.settings.chat_provider,
-            temperature=self.settings.chat_temperature
+            # temperature=self.settings.chat_temperature,
+            # reasoning_effort=
         )
 
     def ask(self, question: str):
@@ -56,7 +58,8 @@ class RAGService():
 
         messages = [
             {"role": "system", "content": self.settings.system_prompt},
-            {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {question}"},
+            # {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {question}"},
+            {"role": "user", "content": f"Handbook text:\n{context}\n\nCustomer question: {question}"},
         ]
 
         return Answer(

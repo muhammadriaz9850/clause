@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 # from pypdf import PdfReader
@@ -10,8 +11,16 @@ from qdrant_client.models import Distance, VectorParams
 from app.core.config import get_embeddings, get_qdrant_client, get_settings
 
 
+STAFF_ONLY = re.compile(r"\n?\d+\.[^\n]*\(staff only\).*?(?=\n\d+\. |\Z)", re.S)
+
+# def load(path: Path) -> list[Document]:
+#     return PyPDFLoader(path).load()
+
 def load(path: Path) -> list[Document]:
-    return PyPDFLoader(path).load()
+    docs = PyPDFLoader(path).load()
+    for doc in docs:
+        doc.page_content = STAFF_ONLY.sub("", doc.page_content)
+    return docs
 
 
 def ingest(path: str | None = None) -> int:
