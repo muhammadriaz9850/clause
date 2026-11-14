@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from app.core.config import get_settings, get_qdrant_client, get_embeddings
 
 
-NO_ANSWER = "I don't know. The clause shop handbook doesn't cover that."
+NO_ANSWER = "I don't know."
 
 class Source(BaseModel):
     source: str
@@ -15,7 +15,6 @@ class Source(BaseModel):
 class Answer(BaseModel):
     answer: str
     sources: list[Source]
-
 
 class RAGService():
     def __init__(self) -> None:
@@ -34,10 +33,9 @@ class RAGService():
         # LLM
         self.llm = init_chat_model(
             model=self.settings.chat_model,
-            api_key=self.settings.chat_api_key,
             model_provider=self.settings.chat_provider,
+            api_key=self.settings.chat_api_key,
             # temperature=self.settings.chat_temperature,
-            # reasoning_effort=
         )
 
     def ask(self, question: str):
