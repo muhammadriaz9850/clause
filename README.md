@@ -9,29 +9,23 @@ Ask a question and Clause looks it up in the handbook. It answers only from what
 ```mermaid
 flowchart LR
     subgraph Ingest["1 · Ingest (once)"]
-        PDF[📄 handbook.pdf] --> Chunk[✂️ Chunk<br/>600 chars, 100 overlap]
-        Chunk --> Dense[🧠 Dense embed<br/>nomic-embed-text]
-        Chunk --> Sparse[🔤 Sparse BM25<br/>FastEmbed]
+        PDF[handbook.pdf] --> Chunk[Chunk<br/>600 chars, 100 overlap]
+        Chunk --> Dense[Dense embed<br/>nomic-embed-text]
+        Chunk --> Sparse[Sparse BM25<br/>FastEmbed]
         Dense --> Q[(Qdrant)]
         Sparse --> Q
     end
 
     subgraph Ask["2 · Ask (every question)"]
-        User([🙋 Question]) --> Hybrid{🔎 Hybrid search<br/>top-k = 3}
+        User([Question]) --> Hybrid{Hybrid search<br/>top-k = 3}
         Q --> Hybrid
-        Hybrid -- "score ≥ 0.5" --> LLM[🤖 LLM<br/>handbook text only]
-        Hybrid -- "no match" --> IDK[🤷 I don't know.]
-        LLM --> Out[✅ Answer + sources]
+        Hybrid -- "score ≥ 0.5" --> LLM[LLM<br/>handbook text only]
+        Hybrid -- "no match" --> IDK[I don't know.]
+        LLM --> Out[Answer + sources]
     end
-
-    click PDF "api/files/shop_handbook.md" "Read the handbook"
-    click Chunk "api/app/services/ingestion.py" "See ingestion code"
-    click Q "api/app/services/ingestion.py" "See collection setup"
-    click Hybrid "api/app/services/chat.py" "See retrieval code"
-    click LLM "api/app/core/config.py" "See the system prompt"
 ```
 
-> Click a box in the diagram to jump to the code behind it, or expand a step below.
+> Expand a step below for details and links to the code.
 
 <details>
 <summary><b>1. Load and chunk the handbook</b></summary>
