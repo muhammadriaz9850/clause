@@ -1,13 +1,13 @@
 # Clause
 
-A customer-support assistant for Clause Shop, built with RAG (Retrieval-Augmented Generation). It runs locally with Ollama by default.
+A customer-support assistant, built with RAG (Retrieval-Augmented Generation). It runs locally with Ollama by default.
 
-Ask a question and Clause looks it up in the shop handbook. It answers only from what it finds and returns the sources it used. If the handbook doesn't cover the question, it says "I don't know."
+Ask a question and Clause looks it up in the handbook. It answers only from what it finds and returns the sources it used. If the handbook doesn't cover the question, it says "I don't know."
 
 ## How it works
 
 ```
-shop_handbook.pdf → chunk → dense embed (Ollama) + sparse BM25 (FastEmbed) → Qdrant
+handbook.pdf → chunk → dense embed (Ollama) + sparse BM25 (FastEmbed) → Qdrant
                                                                                │
 question ──→ hybrid search (dense + BM25, top-k, score threshold) ────────────┘
                  │
@@ -30,7 +30,7 @@ question ──→ hybrid search (dense + BM25, top-k, score threshold) ──�
 ## Quick start
 
 ```bash
-ollama pull gemma3:1b
+ollama pull qwen3.5:4b
 ollama pull nomic-embed-text
 
 cd api

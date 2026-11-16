@@ -1,6 +1,6 @@
 # Clause API
 
-A FastAPI backend that answers customer questions from the Clause Shop handbook using RAG (Retrieval-Augmented Generation).
+A FastAPI backend that answers customer questions from the handbook using RAG (Retrieval-Augmented Generation).
 
 It loads the handbook PDF and splits it into chunks. Each chunk is indexed in Qdrant twice: as a dense embedding and as a sparse BM25 vector. Questions are answered from the chunks that hybrid search ranks as most relevant. By default everything runs locally with Ollama.
 
@@ -8,7 +8,7 @@ It loads the handbook PDF and splits it into chunks. Each chunk is indexed in Qd
 
 - **FastAPI**: HTTP API
 - **LangChain**: model, embedding and agent setup (`init_chat_model`, `init_embeddings`, `create_agent`)
-- **Ollama**: local chat model (`gemma3:1b`) and dense embeddings (`nomic-embed-text`)
+- **Ollama**: local chat model (`qwen3.5:4b`) and dense embeddings (`nomic-embed-text`)
 - **FastEmbed**: sparse BM25 embeddings (`Qdrant/bm25`) for keyword matching
 - **Qdrant**: vector store with hybrid dense + sparse search (embedded on disk by default, or a server)
 - **pydantic-settings**: configuration from `.env`
@@ -47,7 +47,7 @@ api/
 Pull the models:
 
 ```bash
-ollama pull gemma3:1b
+ollama pull qwen3.5:4b
 ollama pull nomic-embed-text
 ```
 
