@@ -6,17 +6,90 @@ Ask a question and Clause looks it up in the handbook. It answers only from what
 
 ## How it works
 
-```
-handbook.pdf → chunk → dense embed (Ollama) + sparse BM25 (FastEmbed) → Qdrant
-                                                                               │
-question ──→ hybrid search (dense + BM25, top-k, score threshold) ────────────┘
-                 │
-                 └──→ LLM (handbook context only) ──→ answer + sources
+```mermaid
+flowchart LR
+    subgraph Ingest["1 · Ingest (once)"]
+        PDF[📄 handbook.pdf] --> Chunk[✂️ Chunk<br/>600 chars, 100 overlap]
+        Chunk --> Dense[🧠 Dense embed<br/>nomic-embed-text]
+        Chunk --> Sparse[🔤 Sparse BM25<br/>FastEmbed]
+        Dense --> Q[(Qdrant)]
+        Sparse --> Q
+    end
+
+    subgraph Ask["2 · Ask (every question)"]
+        User([🙋 Question]) --> Hybrid{🔎 Hybrid search<br/>top-k = 3}
+        Q --> Hybrid
+        Hybrid -- "score ≥ 0.5" --> LLM[🤖 LLM<br/>handbook text only]
+        Hybrid -- "no match" --> IDK[🤷 I don't know.]
+        LLM --> Out[✅ Answer + sources]
+    end
+
+    click PDF "api/files/shop_handbook.md" "Read the handbook"
+    click Chunk "api/app/services/ingestion.py" "See ingestion code"
+    click Q "api/app/services/ingestion.py" "See collection setup"
+    click Hybrid "api/app/services/chat.py" "See retrieval code"
+    click LLM "api/app/core/config.py" "See the system prompt"
 ```
 
-- **Hybrid retrieval**: semantic vectors and BM25 keyword matching are combined. Exact terms like prices, day counts and product names are matched more reliably this way.
-- **Grounded answers**: the system prompt makes the model answer only from the retrieved handbook text.
-- **Evals**: a golden test set measures retrieval hit rate, answer correctness, refusals and leaks of staff-only information.
+> Click a box in the diagram to jump to the code behind it, or expand a step below.
+
+<details>
+<summary><b>1. Load and chunk the handbook</b></summary>
+
+`PyPDFLoader` reads the PDF page by page. `RecursiveCharacterTextSplitter` cuts it into ~600-character chunks with 100 characters of overlap, preferring paragraph and line breaks, so a sentence that answers a question is rarely split in half.
+
+Code: [`ingestion.py`](api/app/services/ingestion.py) · Settings: `RAG_CHUNK_SIZE`, `RAG_CHUNK_OVERLAP`
+</details>
+
+<details>
+<summary><b>2. Embed twice: dense + sparse</b></summary>
+
+Each chunk gets two vectors:
+
+| Vector | Model | Good at |
+|---|---|---|
+| Dense | `nomic-embed-text` (Ollama, 768-dim) | Meaning: "send it back" ≈ "return policy" |
+| Sparse | BM25 (FastEmbed) | Exact terms: prices, day counts, product names |
+
+Before the old collection is deleted, ingestion checks the embedding model actually returns `RAG_EMBED_DIM` dimensions, so a bad config can't wipe the index.
+</details>
+
+<details>
+<summary><b>3. Store in Qdrant</b></summary>
+
+Both vectors go into one Qdrant collection (`dense` with cosine distance, `sparse` for BM25). It runs embedded on disk at `./vector_stores` by default, or against a server if `RAG_QDRANT_URL` is set.
+</details>
+
+<details>
+<summary><b>4. Hybrid search</b></summary>
+
+The question is embedded the same two ways, Qdrant fuses the dense and BM25 results, and the top 3 chunks are kept. Anything under the score threshold (0.5) is dropped. If nothing survives, Clause answers `"I don't know."` **without calling the LLM at all**.
+
+Code: [`chat.py`](api/app/services/chat.py) · Settings: `RAG_TOP_K`, `RAG_SCORE_THRESHOLD`
+</details>
+
+<details>
+<summary><b>5. Grounded answer</b></summary>
+
+The retrieved chunks are passed to the chat model as "Handbook text", with a system prompt that tells it to answer only from that text, copy numbers exactly, keep it to one or two sentences, and reply `"I don't know."` if the text doesn't answer the question.
+
+The response includes the answer plus each source's file, page and score (example values):
+
+```json
+{
+  "answer": "Repairs normally take 5 to 10 working days.",
+  "sources": [{ "source": "files/shop_handbook.pdf", "page": 1, "score": 0.82 }]
+}
+```
+
+Prompt: [`config.py`](api/app/core/config.py)
+</details>
+
+<details>
+<summary><b>6. Evals</b></summary>
+
+A golden test set ([`golden.jsonl`](api/evals/golden.jsonl)) measures retrieval hit rate, answer correctness, refusals and leaks of staff-only information. Run it with `uv run python -m evals.run`; results land in `api/evals/results/`.
+</details>
 
 ## Project layout
 
