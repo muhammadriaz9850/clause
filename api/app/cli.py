@@ -1,25 +1,27 @@
-from app.services.chat import RAGService
+from app.services.agent import ClauseAgent
 
 
 def main():
-    rag_service = RAGService()
+    clause_agent = ClauseAgent()
     try:
-        query = input("You: ").strip()
-        result = rag_service.ask(query)
-        print(f"AI: {result.answer}")
-    except ValueError as e:
-        print(f"Error: {e}")
+        while True:
+            question = input("You: ").strip()
+            if not question:
+                continue
+
+            reply = clause_agent.ask(question)
+
+            print(f"AI: {reply.answer}")
+            print(f"--- searched: {reply.searches}")
+            print(f"--- pages:    {[s.page for s in reply.sources]}")
     except (KeyboardInterrupt, EOFError):
         print()
-    except Exception as e:
-        print(f"Something went wrong: {e}")
     finally:
-        rag_service.close()
+        clause_agent.close()
 
 
 if __name__ == "__main__":
     main()
-
 
 # cd api
 # uv run python -m app.cli
