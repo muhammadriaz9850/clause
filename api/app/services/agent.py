@@ -1,43 +1,28 @@
 from langchain.agents import create_agent
 from langchain.messages import AIMessage, HumanMessage, ToolMessage
-from langchain.tools import tool
 
 from app.schemas import AgentReply, Source, ToolCall
-from app.services.chat import RAGService
+from app.core.config import get_settings
+from app.prompts.loader import get_prompt
+from app.llm.models import get_chat_model
+from app.rag.vectorstore import get_vector_store
+from app.tools.knowledge.handbook import file_search
 
 
 class ClauseAgent:
     def __init__(self):
-        self.rag = RAGService()
-
-        @tool(response_format="content_and_artifact")
-        def search_handbook(query: str) -> tuple[str, list[Source]]:
-            """Search the Clause shop handbook: refunds, delivery times and fees,
-            payments, cash on delivery, warranty, exchanges, tracking, loyalty, support hours.
-            Use a short query like "refund window electronics"."""
-
-            results = self.rag.store.similarity_search_with_score(
-                query=query, k=self.rag.settings.top_k
-            )
-            if not results:
-                return "Nothing found.", []
-
-            text = "\n\n---\n\n".join(doc.page_content for doc, _ in results)
-            sources = [
-                Source(
-                    source=doc.metadata.get("source", "unknown"),
-                    page=doc.metadata.get("page"),
-                    score=round(score, 4),
-                )
-                for doc, score in results
-            ]
-            # content -> goes to the LLM; artifact (sources) -> stays with us
-            return text, sources
+        self.settings = get_settings()
+        self.store = get_vector_store(settings=self.settings)
 
         self.agent = create_agent(
-            model=self.rag.llm,
-            tools=[search_handbook],
-            system_prompt=self.rag.settings.system_prompt,
+            model=get_chat_model(settings=self.settings),
+            tools=[
+                file_search(store=self.store, top_k=self.settings.top_k),
+            ],
+            system_prompt=get_prompt(
+                name="support/system",
+                version=self.settings.system_prompt_version
+            )
         )
 
     def ask(self, question: str) -> AgentReply:
@@ -60,4 +45,4 @@ class ClauseAgent:
         return AgentReply(answer=messages[-1].text, tool_calls=tool_calls, sources=sources)
 
     def close(self):
-        self.rag.close()
+        self.store.client.close()

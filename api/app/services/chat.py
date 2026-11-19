@@ -1,8 +1,8 @@
-from langchain.chat_models import init_chat_model
-from langchain_qdrant import QdrantVectorStore, RetrievalMode, FastEmbedSparse
-from pydantic import BaseModel
+# from langchain.chat_models import init_chat_model
+# from langchain_qdrant import QdrantVectorStore, RetrievalMode, FastEmbedSparse
+# from pydantic import BaseModel
 
-from app.core.config import get_settings, get_qdrant_client, get_embeddings
+# from app.core.config import get_settings, get_qdrant_client, get_embeddings
 
 
 # NO_ANSWER = "I don't know."
@@ -16,31 +16,31 @@ from app.core.config import get_settings, get_qdrant_client, get_embeddings
 #     answer: str
 #     sources: list[Source]
 
-class RAGService():
-    def __init__(self) -> None:
-        self.settings = get_settings()
+# class RAGService():
+#     def __init__(self) -> None:
+#         self.settings = get_settings()
 
-        self.client = get_qdrant_client(self.settings)
-        if not self.client.collection_exists(self.settings.collection_name):
-            raise RuntimeError(f"Collection {self.settings.collection_name} not found!")
+        # self.client = get_qdrant_client(self.settings)
+        # if not self.client.collection_exists(self.settings.collection_name):
+        #     raise RuntimeError(f"Collection {self.settings.collection_name} not found!")
 
-        self.store = QdrantVectorStore(
-            client=self.client,
-            collection_name=self.settings.collection_name,
-            embedding=get_embeddings( self.settings),
-            sparse_embedding=FastEmbedSparse(model_name="Qdrant/bm25"),
-            retrieval_mode=RetrievalMode.HYBRID,
-            vector_name="dense",
-            sparse_vector_name="sparse"
-        )
+        # self.store = QdrantVectorStore(
+        #     client=self.client,
+        #     collection_name=self.settings.collection_name,
+        #     embedding=get_embeddings( self.settings),
+        #     sparse_embedding=FastEmbedSparse(model_name="Qdrant/bm25"),
+        #     retrieval_mode=RetrievalMode.HYBRID,
+        #     vector_name="dense",
+        #     sparse_vector_name="sparse"
+        # )
 
-        # LLM
-        self.llm = init_chat_model(
-            model=self.settings.chat_model,
-            model_provider=self.settings.chat_provider,
-            api_key=self.settings.chat_api_key,
-            # temperature=self.settings.chat_temperature,
-        )
+        # # LLM
+        # self.llm = init_chat_model(
+        #     model=self.settings.chat_model,
+        #     model_provider=self.settings.chat_provider,
+        #     api_key=self.settings.chat_api_key,
+        #     # temperature=self.settings.chat_temperature,
+        # )
 
     # def ask(self, question: str):
     #     question = question.strip()
@@ -76,5 +76,5 @@ class RAGService():
     #         ]
     #     )
 
-    def close(self):
-        self.client.close()
+    # def close(self):
+    #     self.client.close()
