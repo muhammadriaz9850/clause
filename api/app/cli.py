@@ -14,6 +14,9 @@ def main():
             print(f"AI: {reply.answer}")
             print(f"--- searched: {reply.searches}")
             print(f"--- pages:    {[s.page for s in reply.sources]}")
+
+            # state = clause_agent.agent.get_state({"configurable": {"thread_id": thread_id}})
+            # print(f"--- memory:     {len(state.values["messages"])} messages")
     except (KeyboardInterrupt, EOFError):
         print()
     finally:

@@ -39,6 +39,14 @@ class Settings(BaseSettings):
     top_k: int = 3
     score_threshold: float = 0.5
 
+    # Agent limits (per question)
+    max_model_calls: int = 5
+    max_tool_calls: int = 4
+
+    # Memory: summarize old messages when the conversation gets long
+    summary_trigger_tokens: int = 3000
+    summary_keep_messages: int = 10
+
     # Qdrant
     collection_name: str = "shop_handbook"
     qdrant_path: str = "./vector_stores"

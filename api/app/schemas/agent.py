@@ -13,6 +13,7 @@ class AskRequest(Schema):
     """Body of POST /ask."""
 
     question: Question
+    thread_id: str | None = None   # send it back to continue a conversation
 
 
 class ToolCall(Schema):
@@ -26,6 +27,7 @@ class AgentReply(Schema):
     """What ClauseAgent.ask() returns (and what POST /ask responds with)."""
 
     answer: str
+    thread_id: str
     tool_calls: list[ToolCall] = Field(default_factory=list)
     sources: list[Source] = Field(default_factory=list)
 
