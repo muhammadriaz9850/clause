@@ -38,16 +38,20 @@ api/
 │   ├── main.py                    # FastAPI app: lifespan, GET /, POST /ask
 │   ├── cli.py                     # Interactive terminal chat
 │   ├── core/
-│   │   └── config.py              # Settings (RAG_ prefix), embeddings, Qdrant client
+│   │   ├── config.py              # Settings (RAG_ prefix), embeddings, Qdrant client
+│   │   └── logging.py             # setup_logging() (stub, not wired in yet)
 │   ├── llm/
-│   │   └── models.py              # Chat model factory (init_chat_model)
+│   │   └── models.py              # Chat model factory (init_chat_model) + fallback hook (stub)
 │   ├── rag/
+│   │   ├── cleaning.py            # remove_internal(): drops staff-only sections before indexing
 │   │   └── vectorstore.py         # Hybrid QdrantVectorStore (dense + BM25)
+│   ├── guardrails/
+│   │   └── pii.py                 # CNIC / PK phone patterns + pii_guardrails() (stub)
 │   ├── tools/
 │   │   └── knowledge/
 │   │       └── handbook.py        # search_handbook tool (content + source artifact)
 │   ├── middleware/
-│   │   ├── stacks.py              # Default middleware stack (limits, context, summary)
+│   │   ├── stacks.py              # Default middleware stack (limits, context, summary, fallback hook)
 │   │   └── observability.py       # LoggingMiddleware (stub, not wired in yet)
 │   ├── prompts/
 │   │   ├── loader.py              # get_prompt(name, version)
@@ -56,7 +60,7 @@ api/
 │   ├── schemas/                   # Pydantic models: AskRequest, AgentReply, ToolCall, Source
 │   └── services/
 │       ├── agent.py               # ClauseAgent: agent + tools + middleware + memory
-│       ├── ingestion.py           # Load → chunk → embed (dense + BM25) → store
+│       ├── ingestion.py           # Load → clean → chunk → embed (dense + BM25) → store
 │       └── chat.py                # Legacy RAGService (commented out, kept for reference)
 ├── data/
 │   ├── shop_handbook.pdf          # Source document that gets ingested
@@ -66,13 +70,15 @@ api/
 │   ├── golden_v2.jsonl            # Larger test set (50 cases)
 │   ├── run.py                     # Eval harness
 │   └── results/                   # Timestamped JSON reports
+├── tests/
+│   └── test_guardrails.py         # Guardrail tests (empty for now)
 ├── vector_stores/                 # Embedded Qdrant data (created by ingestion, not tracked)
-├── memory.db                      # Conversation checkpoints (created on first run)
+├── memory.db                      # Conversation checkpoints (created on first run, not tracked)
 ├── .env.example
 └── pyproject.toml
 ```
 
-Empty packages such as `agents/`, `api/`, `guardrails/`, `memory/` and `tools/mcp/` are placeholders for upcoming work.
+Empty packages such as `agents/`, `api/`, `memory/` and `tools/mcp/` are placeholders for upcoming work. The stubs marked above (`setup_logging`, `get_fallback_model`, `pii_guardrails`, `LoggingMiddleware`) exist but don't do anything yet.
 
 ## Getting started
 
@@ -114,12 +120,14 @@ Keep `RAG_SYSTEM_PROMPT_VERSION=v3`. It is the only system prompt with content (
 
 This command builds the Qdrant collection from `RAG_DATA_PATH` (default `data/shop_handbook.pdf`). Each chunk gets a `dense` vector and a `sparse` BM25 vector.
 
+Before chunking, `remove_internal()` ([`app/rag/cleaning.py`](app/rag/cleaning.py)) deletes every numbered section whose title starts with `Internal:`, from the heading up to the next numbered section or the end of the page. In the current handbook that removes "12. Internal: Fraud Review (staff only)". Staff-only text therefore never enters the index, so the agent can't retrieve it.
+
 ```bash
 uv run python -m app.services.ingestion
 # prints: <N> chunks indexed
 ```
 
-Run it once, and again whenever the PDF or the chunking or embedding settings change. Each run deletes the collection and rebuilds it. Before deleting anything, it checks that the embedding model's output size matches `RAG_EMBED_DIM` and stops with an error if it doesn't.
+Run it once, and again whenever the PDF, the cleaning rules or the chunking or embedding settings change. A collection built before the cleaning step was added still contains the staff-only chunks, so re-ingest it. Each run deletes the collection and rebuilds it. Before deleting anything, it checks that the embedding model's output size matches `RAG_EMBED_DIM` and stops with an error if it doesn't.
 
 The API refuses to start if the collection doesn't exist (`RuntimeError: Collection shop_handbook not found!`).
 
@@ -223,10 +231,13 @@ Defined in [`app/middleware/stacks.py`](app/middleware/stacks.py):
 | `ToolCallLimitMiddleware`  | `run_limit=RAG_MAX_TOOL_CALLS`                        | Caps the searches per question                  |
 | `ContextEditingMiddleware` | `ClearToolUsesEdit(trigger=2000, keep=2)`             | Clears old tool output once the context grows   |
 | `SummarizationMiddleware`  | trigger `RAG_SUMMARY_TRIGGER_TOKENS`, keep `RAG_SUMMARY_KEEP_MESSAGES` | Compresses long conversations |
+| `ModelFallbackMiddleware`  | only added when `get_fallback_model()` returns a model | Switches to a backup model if the main one fails |
+
+`get_fallback_model()` in [`app/llm/models.py`](app/llm/models.py) is a stub that returns `None`, so the fallback is not active yet. The PII guardrail in [`app/guardrails/pii.py`](app/guardrails/pii.py) is imported by the stack but not added to it yet.
 
 ### Memory
 
-A LangGraph `SqliteSaver` stores conversation state in `memory.db`, in the folder you run the app from (normally `api/`). Each conversation is keyed by its `thread_id`. Delete the file to clear all conversations.
+A LangGraph `SqliteSaver` stores conversation state in `memory.db`, in the folder you run the app from (normally `api/`). Each conversation is keyed by its `thread_id`. The file is git-ignored. Delete it to clear all conversations.
 
 ## Prompts
 
@@ -256,7 +267,7 @@ There are three kinds of test case:
 | `out_of_scope` | The answer is a refusal, for example "I don't know"                      |
 | `restricted`   | The answer contains none of the `must_not_include` staff-only terms      |
 
-Each case prints a pass/fail line. A failing answerable case also gets a blame note, which says whether the **retriever** missed the fact or the **generator** got it wrong even though the fact was in the retrieved chunks.
+Each case prints a pass/fail line. Every failing case also gets a blame note. For an answerable case, it says whether the **retriever** missed the fact or the **generator** got it wrong even though the fact was in the retrieved chunks. Out-of-scope failures are blamed for not saying "I don't know", and restricted failures for leaking staff-only information.
 
 Summary metrics:
 

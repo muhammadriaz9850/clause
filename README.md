@@ -9,7 +9,8 @@ Clause answers only from what the handbook says. Every reply comes with the sear
 - **Tool-calling agent.** Built with LangChain `create_agent`. The model decides when to call `search_handbook`, and it can search more than once for a two-part question.
 - **Hybrid retrieval.** Qdrant combines dense embeddings (`nomic-embed-text`) with sparse BM25 vectors, so it catches both meaning ("send it back" ≈ "return policy") and exact terms (prices, day counts).
 - **Grounded answers with sources.** Each response includes the tool calls and the source file, page and score of every chunk the agent read.
-- **Conversation memory.** Conversations are checkpointed to SQLite and identified by a `thread_id`. Long histories are summarized automatically.
+- **Staff-only content is never indexed.** Ingestion removes the handbook's `Internal:` sections before chunking, so the agent can't retrieve them.
+- **Conversation memory.** Conversations are checkpointed to SQLite and identified by a `thread_id`. Long histories are summarized automatically. (`/ask` and the CLI don't forward a `thread_id` yet, so each request is a new conversation for now.)
 - **Guardrails through middleware.** The stack caps model and tool calls per question, trims old tool output and summarizes long conversations.
 - **Versioned prompts.** System prompts live in `app/prompts/` as Markdown files, and you choose one with a setting.
 - **Evals.** A golden test set measures retrieval hit rate, answer correctness, refusals and leaks of staff-only information.
@@ -19,7 +20,8 @@ Clause answers only from what the handbook says. Every reply comes with the sear
 ```mermaid
 flowchart LR
     subgraph Ingest["1 · Ingest (once)"]
-        PDF[shop_handbook.pdf] --> Chunk[Chunk<br/>600 chars, 100 overlap]
+        PDF[shop_handbook.pdf] --> Clean[Clean<br/>drop staff-only sections]
+        Clean --> Chunk[Chunk<br/>600 chars, 100 overlap]
         Chunk --> Dense[Dense embed<br/>nomic-embed-text]
         Chunk --> Sparse[Sparse BM25<br/>FastEmbed]
         Dense --> Q[(Qdrant)]
@@ -39,11 +41,11 @@ flowchart LR
 > Expand a step below for details and links to the code.
 
 <details>
-<summary><b>1. Load and chunk the handbook</b></summary>
+<summary><b>1. Load, clean and chunk the handbook</b></summary>
 
-`PyPDFLoader` reads the PDF page by page. `RecursiveCharacterTextSplitter` cuts it into chunks of about 600 characters with 100 characters of overlap. It prefers to split at paragraph and line breaks, so a sentence that answers a question is rarely cut in half.
+`PyPDFLoader` reads the PDF page by page. Next, `remove_internal()` deletes every numbered section whose title starts with `Internal:` (for example "12. Internal: Fraud Review (staff only)"), so staff-only text never reaches the index. Then `RecursiveCharacterTextSplitter` cuts it into chunks of about 600 characters with 100 characters of overlap. It prefers to split at paragraph and line breaks, so a sentence that answers a question is rarely cut in half.
 
-Code: [`ingestion.py`](api/app/services/ingestion.py) · Settings: `RAG_DATA_PATH`, `RAG_CHUNK_SIZE`, `RAG_CHUNK_OVERLAP`
+Code: [`ingestion.py`](api/app/services/ingestion.py), [`cleaning.py`](api/app/rag/cleaning.py) · Settings: `RAG_DATA_PATH`, `RAG_CHUNK_SIZE`, `RAG_CHUNK_OVERLAP`
 </details>
 
 <details>
@@ -93,6 +95,8 @@ Every question runs through this middleware stack:
 | `ContextEditingMiddleware`  | Clears old tool results once the context grows, keeping the last 2  |
 | `SummarizationMiddleware`   | Summarizes old messages once the history reaches `RAG_SUMMARY_TRIGGER_TOKENS` tokens |
 
+The stack also has a hook for `ModelFallbackMiddleware`: it is added only when `get_fallback_model()` returns a model. That function is a stub for now, so no fallback is active. A PII-redaction guardrail (`app/guardrails/pii.py`) is scaffolded but not wired in yet.
+
 Conversation state is saved by a LangGraph `SqliteSaver` checkpointer in `memory.db`. Each conversation is keyed by its `thread_id`.
 
 Code: [`stacks.py`](api/app/middleware/stacks.py)
@@ -101,7 +105,7 @@ Code: [`stacks.py`](api/app/middleware/stacks.py)
 <details>
 <summary><b>6. Grounded answer with sources</b></summary>
 
-The prompt tells the model to use only facts from the search results, copy numbers exactly, keep answers to one or two sentences and never reveal internal or staff-only information. When the handbook doesn't cover a question, it replies:
+The prompt tells the model to use only facts from the search results, copy numbers exactly, keep answers to one or two sentences and never reveal internal or staff-only information. This is a second layer of protection: staff-only sections are already removed at ingestion (step 1). When the handbook doesn't cover a question, it replies:
 
 > I don't know. Our support team can help on live chat or at help@shop.com.
 

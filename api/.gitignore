@@ -14,3 +14,6 @@ __pycache__/
 
 # Vector database (rebuilt by ingest)
 vector_stores/
+
+# Conversation memory (SqliteSaver checkpoints)
+memory.db*
