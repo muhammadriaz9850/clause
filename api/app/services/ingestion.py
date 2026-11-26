@@ -78,4 +78,4 @@ if __name__ == "__main__":
     print(ingest(), "chunks indexed")
 
 # cd api
-# c
+# uv run python -m app.services.ingestion

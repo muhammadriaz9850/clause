@@ -21,8 +21,7 @@ def health():
 
 @app.post("/ask", response_model=AgentReply)
 def ask_query(body: AskRequest, req: Request) -> AgentReply:
-    return req.app.state.agent.ask(body.question)
-
+    return req.app.state.agent.ask(body.question, body.thread_id)
 
 # cd api
 # uv run fastapi dev app/main.py
